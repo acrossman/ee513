@@ -1,0 +1,212 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!8},
+  columns=fullflexible
+}
+
+% Item heading, the instruction quoted from the assignment, and its deliverable
+\newcommand{\task}[3]{\subsection*{#1}{\sloppy\noindent\textit{#2}\par}\smallskip\noindent\textit{Deliverable: #3}\par\medskip}
+
+\title{EE 513 --- Setup and First Captures}
+\author{Crow Crossman}
+\date{October 6, 2026}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Repository:} \url{https://github.com/acrossman/ee513}
+
+%======================================================================
+\section*{Environment}
+
+\task{1. Course environment smoke test}
+{Build the course environment from the two files on the setup page and run the smoke test notebook.}
+{the version block the smoke test prints, showing Python, NumPy, and OpenCV versions.}
+
+\begin{lstlisting}
+[PASS] Python 3.10 or newer  found 3.12
+[PASS] numpy 2.5.3
+[PASS] OpenCV major version is 5  found 5.0.0
+\end{lstlisting}
+
+\task{2. Project 1 repository}
+{Create a public GitHub repository for Project 1, with a README naming the camera you intend to characterize and the app you will use to capture raw.}
+{the repository URL.}
+
+\url{https://github.com/acrossman/ee513}
+
+%======================================================================
+\section*{Confirm Your Camera Writes Real Raw}
+
+\task{3. rawpy metadata}
+{Capture one raw photograph of anything, load it with \texttt{rawpy}, and print \texttt{raw\_type}, the shape and dtype of \texttt{raw\_image\_visible}, \texttt{raw\_pattern}, \texttt{color\_desc}, \texttt{black\_level\_per\_channel}, and \texttt{white\_level}.}
+{the printed output.}
+
+\begin{lstlisting}
+raw_type: RawType.Flat
+------------------------------
+raw_image_visible: [[ 67  67  66 ..., 100  93 102]
+ [ 70  67  69 ...,  75  97  73]
+ [ 67  70  67 ..., 104  92 100]
+ ..., 
+ [ 92  72  91 ...,  69  83  70]
+ [ 82  93  80 ...,  84  78  83]
+ [ 88  73  90 ...,  69  82  68]]
+shape: (3472, 4624)
+dtype: uint16
+------------------------------
+raw_pattern: [[0 1]
+ [3 2]]
+------------------------------
+color_desc: b'RGBG'
+------------------------------
+black_level_per_channel: [64, 64, 64, 64]
+------------------------------
+white_level: 1023
+\end{lstlisting}
+
+\task{4. Bayer mosaic verdict}
+{State in one sentence whether you have a Bayer mosaic. You want \texttt{RawType.Flat}, a two-dimensional \texttt{raw\_image}, and a 2x2 \texttt{raw\_pattern}. A three-dimensional array or a \texttt{raw\_pattern} of \texttt{None} means the camera has already demosaiced the file and it will not work for Project 2.}
+{a one-sentence verdict, and the CFA layout as four letters, for example RGGB or BGGR.}
+
+I have a Bayer Mosaic as confirmed by the \texttt{raw\_type} output of \texttt{RawType.Flat}, confirmation of two-dimensions from raw image shape outputting (3472, 4624), a 2x2 \texttt{raw\_pattern}, and a CFA layout of `RGGB' based on the \texttt{color\_desc}, \texttt{raw\_pattern}, and documentation from \url{https://letmaik.github.io/rawpy/api/rawpy.RawPy.html}.
+
+\task{5. If not a Bayer mosaic}
+{If you do not have a Bayer mosaic, say which app and settings you tried and what you will do next. Apple ProRAW is the usual culprit on iPhone; Open Camera with the Camera2 API and ``JPEG and DNG (RAW)'' is the usual fix on Android. Email me this week if you are stuck rather than after the deadline.}
+{a written statement, or ``not applicable'' if item 4 succeeded.}
+
+Not applicable.
+
+%======================================================================
+\section*{What the Ordinary Photo Path Threw Away}
+
+\task{6. Raw vs.\ JPEG/HEIC comparison}
+{Capture the same scene twice without moving the camera, once as raw and once as an ordinary JPEG or HEIC. Report the file size, bit depth, and number of channels of each.}
+{a small table with both files.}
+
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+File & Size (bytes) & Bit depth & Channels & Shape \\
+\midrule
+Raw (\texttt{.dng}) & 32{,}151{,}936 & \texttt{uint16} & 1 & (3472, 4624) \\
+JPEG (\texttt{.jpg}) & 1{,}209{,}805 & \texttt{uint8} & 3 & (4624, 3472, 3) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\task{7. Zoomed raw crop}
+{Display a region of about 30 by 30 pixels of the raw data, zoomed so that individual pixels are visible as blocks.}
+{the figure, and a sentence identifying what the checkerboard texture is. It is not noise.}
+
+Below is a 30 by 30 pixel section of the raw data from my raw image capture.
+I focused on a corner of the image that was fundamentally a white section of the photo.
+The pixels show the Bayer mosaic pattern in the 'Greens' color map for matplotlib.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.5\textwidth]{figures/task_7.png}
+  \caption{30x30 pixel region of the raw data.}
+\end{figure}
+
+
+
+\task{8. Irreversible JPEG pipeline steps}
+{Name three things the camera's own pipeline did to the JPEG that cannot be undone afterwards, and say for each one why it is irreversible.}
+{a short written answer, three or four sentences.}
+
+The camera pipeline performed a number of irreversible changes.
+Based on the outputs from task 6 we can see that the size of the file has been reduced, the bit depth has been reduced, and color channels have been created.
+Based on readings from Bhandari, Kadambi, and Raskar (section 2.2.4) this reflects the process of taking a raw image file and performing a handful of corrections/alterations:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Demosaicing.} First the image is demosaiced, using the monochromatic pixel values from the mosaic to interpolate each color channel. Since these values are based on interpolated estimates we cannot rebuild the original mosaic with perfect accuracy from the post-processed jpeg alone.
+  \item \textbf{Bit depth reduction.} The bit depth has changed with the actual sensor values of the colors started as potentially 16 bits (it was unclear to me how to confirm the number of bits used but \texttt{dtype} returned \texttt{uint16}), but have been quantized to 8 bits (values between 0--255). Since the values have been quantized to 8 bits we have no way of knowing whether a min or max value is more or less in additional bit depth.
+  \item \textbf{Compression.} The file size has been compressed by 96\%, but I could not confirm the criteria as to why this level of compression is deemed appropriate. Even if this reduction is a nearly 100\% approximation there is still uncertainty in trying to reverse any discarded information.
+  \item \textbf{White balance and gamma correction.} I did not confirm this through programming but the reading suggests that other standard corrections include denoising, white balance, as well as gamma balance. Once these corrections are performed there is no stored data to allow for reversing as far as I know.
+\end{enumerate}
+
+All of these result in a loss of information that cannot be reconstructed into full fidelity of the original raw value.
+
+%======================================================================
+\section*{First Calibration Captures}
+
+\task{9. Measured square size}
+{Print the calibration target at 100\% scale and tape it flat to card or board. Measure one square with a ruler and report the measured size in millimetres.}
+{the measured square size, and one sentence on why you will use your measured value rather than the nominal 20.0\,mm.}
+
+I thought I had printed the pdf at 100\% but when I measured the reference bar it came out to 96 mm and the sides of the squares came out to 19 mm each.
+I will use the measured 19\,mm because the square size is what gives the calibration its physical scale.
+
+\task{10. Calibration captures}
+{Capture at least 15 photographs of the target at a variety of angles, distances, and positions in the frame, including several where the board is tilted well away from parallel and several where it sits near a corner of the frame.}
+{a contact sheet of your captures.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/contact_sheet.jpg}
+  \caption{Contact sheet of the 15 calibration captures, numbered in capture order and shown in the sensor's native orientation.}
+\end{figure}
+
+\task{11. Chessboard detection}
+{Run \texttt{cv2.findChessboardCorners} with the pattern size (9, 6) on every capture and report how many succeeded.}
+{the count, and one image with the detected corners drawn on it.}
+
+The function detected 11 out of 15 images failing on severely tilted frames.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/task_12.jpg}
+  \caption{Detected $9\times6$ inner corners drawn by \texttt{cv2.drawChessboardCorners}.}
+\end{figure}
+
+\task{12. Calibration RMS reprojection error}
+{Pass the successful detections to \texttt{cv2.calibrateCamera} and report the RMS reprojection error it returns. A rough number is fine here; Project 1 is where you will interpret it.}
+{the RMS reprojection error, and one sentence on what it means and what units it is in.}
+
+\begin{lstlisting}
+Not detected: IMG_20261002_155655.dng
+Not detected: IMG_20261002_155647.dng
+Not detected: IMG_20261002_155624.dng
+Not detected: IMG_20261002_155711.dng
+11 of 15
+0.930455325433955
+\end{lstlisting}
+
+The reprojection error came to 0.93 pixels representing the distance, in pixels, between the corners detected in each photo and where the known board points land when projected through the camera model. The calibration chooses the camera matrix, distortion coefficients, and each photo's pose so that this distance is as small as possible, and the RMS error is what remains.
+
+%======================================================================
+\section*{Reflections}
+
+\task{13. What did you learn?}
+{What did you learn from this assignment?}
+{a written response.}
+
+For this assignment I found the reading from Bhandari, Kadambi, and Raskar incredibly helpful. It clarified a lot of ideas including concepts like ISO settings, gamma balance, and the digital image processing pipeline in general. The documentation from OpenCV on their tools was also helpful in reinforcing the calibration theory.
+
+\task{14. Questions for the instructor}
+{What questions, if any, do you have for me after completing this assignment?}
+{a written response.}
+
+I don't have any particular questions at present since it is early in the term. I think that some of my broader questions will be answered as we progress, but I will make sure to put them out there as they come up.
+
+%======================================================================
+\section*{Use of AI Tools}
+\noindent\textit{On AI tools. Use them freely on this and every exercise. If you do, add two sentences at the end saying what you used them for and how you checked that the output was right. That habit is the one I will ask about all term, and it is what the projects grade.}\par\medskip
+AI tools (Claude by Anthropic) were used in the composition of this report. The tools were used for organizing LaTeX code in addition to simple scripts. The author of this report reviewed any code used, and often discarded it in favor of some good old fashioned home rolled. I cannot overstate how much simpler it often is to use code provided by the designers and their documentation. Sometimes the tools were used to act as a tutor on concepts or to test the knowledge of the author.
+
+\end{document}
