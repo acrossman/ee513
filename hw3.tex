@@ -1,0 +1,325 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{siunitx}
+\usepackage[hidelinks]{hyperref}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!8},
+  columns=fullflexible
+}
+
+% Item heading, the instruction quoted from the assignment, and its deliverable
+\newcommand{\task}[3]{\subsection*{#1}{\sloppy\noindent\textit{#2}\par}\smallskip\noindent\textit{Deliverable: #3}\par\medskip}
+
+% Drafting helpers -- remove once everything is filled in
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{TODO:} #1}}
+\newcommand{\figplaceholder}[2][0.6\textwidth]{\fbox{\parbox[c][1.5in][c]{#1}{\centering\textcolor{gray}{\texttt{\detokenize{#2}}}}}}
+
+\title{EE 513 --- Noise and Linear Light}
+\author{Crow Crossman}
+\date{October 20, 2026}
+
+\begin{document}
+\maketitle
+
+%======================================================================
+\section*{Part 1: Captures}
+
+\task{1. Flat-field pairs}
+{Capture at least ten pairs of flat fields spanning the range from nearly black to nearly saturated, two frames at each level with nothing moved or changed between them.}
+{a contact sheet showing one frame from each pair, and a list giving the exposure time and ISO of every capture.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/flat_contact_sheet.jpg}
+  \caption{One raw frame from each flat-field pair in order of increasing exposure.}
+\end{figure}
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Pair & Exposure (s) & ISO & Files \\
+\midrule
+1  & 1/50 & 45 & \texttt{190358}, \texttt{190359} \\
+2  & 1/45 & 45 & \texttt{190411}, \texttt{190413} \\
+3  & 1/40 & 45 & \texttt{190419}, \texttt{190421} \\
+4  & 1/35 & 45 & \texttt{190428}, \texttt{190430} \\
+5  & 1/30 & 45 & \texttt{190449}, \texttt{190451} \\
+6  & 1/25 & 45 & \texttt{190508}, \texttt{190510} \\
+7  & 1/20 & 45 & \texttt{190515}, \texttt{190516} \\
+8  & 1/10 & 45 & \texttt{190527}, \texttt{190529} \\
+9  & 1/5  & 45 & \texttt{190547}, \texttt{190550} \\
+10 & 3/10 & 45 & \texttt{190559}, \texttt{190601} \\
+11 & 2/5  & 45 & \texttt{190610}, \texttt{190613} \\
+12 & 1/2  & 45 & \texttt{190619}, \texttt{190622} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This contact sheet represents the second set of photos that I captured due to problems that manifested in Item 6.
+When I calculated my Photon Transfer Curve I had a negative intercept resulting in a read noise of zero which made no sense.
+The line was fit to only 6 points in my original attempt due to a high saturation rate rendering several photos unusable.
+For the second set of photos I used a more disciplined practice of immobilizing my phone and taping a paper to the phone.
+I took a larger sample as well, most of which was fully saturated.
+
+\task{2. Same camera, same ISO}
+{Confirm from the metadata that the entire series came from one camera at one ISO, using the \texttt{lens\_id} helper from the Project 1 page together with the ISO field.}
+{the assertion passing, or an account of which captures differ and what you did about it.}
+
+\begin{lstlisting}
+lens_id assertion passed for 24 flat-field captures: ('Pixel 7a', 5.43, None, (4624, 3472)), ISO 45
+lens_id assertion passed for 25 dark-frame captures: ('Pixel 7a', 5.43, None, (4624, 3472)), ISO 45
+\end{lstlisting}
+
+\task{3. Dark frames and black level}
+{Capture five dark frames with the lens covered at each of four exposure times, spanning the longest range your app allows, and compare their level against the black level recorded in the file.}
+{the black level per channel from the file, the mean of your shortest dark frames in digital numbers, and one sentence on whether the two agree.}
+
+\begin{lstlisting}
+DNG black_level_per_channel: [64, 64, 64, 64]  (channels ['R', 'G', 'B', 'G'], raw_pattern [[0, 1], [3, 2]])
+Mean of 5 frames, all pixels (80,272,640): 64.009 DN
+\end{lstlisting}
+
+\noindent Black level per channel (from file): [64, 64, 64, 64] DN.\\
+Mean of the shortest (1/40\,s) dark frames: 64.009 DN.
+
+The average black level across all of the pixels of the 5 captures I took with the 1/40 sec exposure time
+came to 64.009 DN. The offset pulled from the per channel data was 64 for each channel.
+The difference is negligible. 
+
+%======================================================================
+\section*{Part 2: The Photon Transfer Curve}
+
+\noindent\textit{Throughout this part, $D$ is the value of a raw pixel in digital numbers, $B$ is the black level, $K$ is the conversion gain in DN per electron, and $\sigma_r$ is the read noise in electrons. The model gives $\mathrm{Var}[D] = K(\mathrm{E}[D] - B) + K^2\sigma_r^2$, so variance against mean is a straight line with slope $K$ and intercept $K^2\sigma_r^2$. All measurements use a single green plane on a $128 \times 128$ patch at the center of the frame.}\par\medskip
+
+\task{4. Validation on the simulated sensor}
+{Before fitting any of your own data, run your photon transfer code on the simulated sensor in the lecture 5 demo notebook, which reports the true gain and read noise it used to generate the frames.}
+{your recovered gain and read noise beside the true values, as percentage errors.}
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+ & True & Recovered & Error \\
+\midrule
+Gain $K$ (DN/$e^-$) & 0.4266 & 0.4236 & $-0.69$\% \\
+Read noise $\sigma_r$ ($e^-$) & 2.80 & 2.96 & $+5.7$\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\task{5. Mean and variance per pair}
+{For each pair, compute the mean signal as the average of the two frame means with the black level subtracted, and the variance as half the variance of the difference of the two frames.}
+{your list of mean and variance values, and the number of pixels in the patch.}
+
+\noindent Pixels in patch: $128 \times 128 = 16384$.
+
+\begin{center}
+\small
+\begin{tabular}{lcccccccc}
+\toprule
+Pair & Exp.\ (s) & $\bar{D}_1$ & $\bar{D}_2$ & $\bar{D} = \tfrac{1}{2}(\bar{D}_1 + \bar{D}_2)$ & $B$ & {\boldmath $\bar{D} - B$} & $\mathrm{Var}[D_1 - D_2]$ & \textbf{Variance} \\
+\midrule
+1  & 1/50 & 104.81 & 103.73 & 104.27 & 64.009 & \textbf{40.26} & 6.11 & \textbf{3.06} \\
+2  & 1/45 & 109.28 & 108.06 & 108.67 & 64.009 & \textbf{44.66} & 6.68 & \textbf{3.34} \\
+3  & 1/40 & 114.58 & 113.55 & 114.06 & 64.009 & \textbf{50.06} & 7.25 & \textbf{3.62} \\
+4  & 1/35 & 122.34 & 120.63 & 121.49 & 64.009 & \textbf{57.48} & 8.81 & \textbf{4.40} \\
+5  & 1/30 & 131.54 & 130.13 & 130.84 & 64.009 & \textbf{66.83} & 10.16 & \textbf{5.08} \\
+6  & 1/25 & 140.12 & 145.21 & 142.66 & 64.009 & \textbf{78.66} & 11.85 & \textbf{5.93} \\
+7  & 1/20 & 163.68 & 151.17 & 157.43 & 64.009 & \textbf{93.42} & 13.86 & \textbf{6.93} \\
+8  & 1/10 & 263.08 & 239.21 & 251.14 & 64.009 & \textbf{187.13} & 26.70 & \textbf{13.35} \\
+9  & 1/5  & 434.84 & 455.40 & 445.12 & 64.009 & \textbf{381.11} & 53.20 & \textbf{26.60} \\
+10 & 3/10 & 613.74 & 636.23 & 624.98 & 64.009 & \textbf{560.97} & 78.25 & \textbf{39.12} \\
+11 & 2/5  & 773.04 & 802.27 & 787.65 & 64.009 & \textbf{723.64} & 101.93 & \textbf{50.97} \\
+12 & 1/2  & 1005.02 & 1022.89 & 1013.96 & 64.009 & \textbf{949.95} & 127.48 & \textbf{63.74} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent $\bar{D}_1$, $\bar{D}_2$ are the patch means of the two frames and $B = 64.009$ is the black level measured from the 1/40\,s dark frames (item 3), all in DN; Variance $= \tfrac{1}{2}\mathrm{Var}[D_1 - D_2]$, in DN$^2$.
+
+\task{6. Conversion gain and read noise}
+{Fit a line through the points that lie below 70 percent of saturation, and report the conversion gain and the read noise.}
+{a figure of variance against mean showing the fitted line with the excluded points distinguished, the gain in digital numbers per electron, and the read noise in electrons, each with an uncertainty from the fit.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/ptc.pdf}
+  \caption{Photon transfer curve. Filled points were used in the fit; open points lie above 70\% of saturation and were excluded.}
+\end{figure}
+
+\begin{align*}
+K &= 0.0691 \pm 0.0002\ \text{DN}/e^- \\
+\sigma_r &= 8.75 \pm 0.64\ e^-
+\end{align*}
+
+\noindent Uncertainties are $1\sigma$ from the fit covariance: the intercept is $0.365 \pm 0.052$\,DN$^2$, and the read-noise uncertainty is propagated through $\sigma_r = \sqrt{c}/K$ including the slope--intercept covariance (correlation $-0.68$).
+
+\task{7. Single-frame variance}
+{Repeat the fit using the variance of a single frame at each level in place of the difference of pairs, and report both gains. The two disagree because one quantity present in the photographs is absent from the model. Name that quantity, and say which way it moves the gain and why.}
+{both gains, their percentage difference, and a written explanation (2 to 3 sentences).}
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+Method & $K$ (DN/$e^-$) \\
+\midrule
+Difference of pairs & 0.0691 \\
+Single frame & 0.1178 \\
+\midrule
+Difference & $+70.6$\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/ptc_single_vs_pair.pdf}
+  \caption{Variance of a single frame (frame 1) and half the variance of the pair difference against mean signal, each with its fit below 70\% of saturation. Open points were excluded.}
+\end{figure}
+
+By using only a single capture for each point we are not removing the fixed-pattern noise.
+Since this noise represents variation in each pixel that does not change, it grows quadratically with brightness.
+Attempting to fit a linear equation results in a large slope and thus larger gain. 
+
+\task{8. Full well and dynamic range}
+{Report your full well capacity in electrons and your dynamic range in stops. More than one convention exists for the low end of the dynamic range, and the number you get depends on which you adopt, so state yours.}
+{full well in electrons, dynamic range in stops, and the criterion you used.}
+
+\begin{align*}
+\text{Full well} &= \frac{W - B}{K} = \frac{1023 - 64.009}{0.0691} = 13886\ e^- \\
+\text{DR} &= \log_2\!\left(\frac{\text{Full well}}{\sigma_r}\right) = \log_2\!\left(\frac{13886}{8.75}\right) = 10.63\ \text{stops}
+\end{align*}
+
+\noindent Criterion: the low end of the range is the signal equal to the read noise, $\mu = \sigma_r$, as in the lecture 5 demo.
+%======================================================================
+\section*{Part 3: Signal to Noise}
+
+\noindent\textit{In electrons the model gives $\mathrm{SNR} = \mu/(\mu + \sigma_r^2)^{1/2}$. SNR rises as $\sqrt{\mu}$ where photon noise dominates and as $\mu$ where read noise dominates, and the two regimes meet at $\mu = \sigma_r^2$.}\par\medskip
+
+\task{9. SNR curve}
+{Plot your measured signal-to-noise ratio against signal in electrons on logarithmic axes, draw the curve predicted by your fitted gain and read noise over it, and mark the knee.}
+{the figure, the knee in electrons, and one sentence on whether your captures actually reach into both regimes.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/snr.pdf}
+  \caption{Measured SNR against signal in electrons, with the curve predicted from $K = 0.0691$\,DN/$e^-$ and $\sigma_r = 8.75\,e^-$. The dashed and dotted lines are the photon-noise and read-noise limits, and the vertical line marks the knee at $\mu = \sigma_r^2$. Open points lie above 70\% of saturation.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/snr_with_dark.pdf}
+  \caption{The same SNR curve with pairs of adjacent dark frames (squares) added at each exposure time. Their signal is dark current, which reaches about $16\,e^-$ at 16\,s, below the knee. Signal and variance for the dark pairs use the whole G1 plane; two 1/40\,s pairs with signal $\le 0$ are not shown on the logarithmic axes.}
+\end{figure}
+
+\noindent Knee: $\mu = \sigma_r^2 = 8.75^2 = 76.5\ e^-$. The captures span 583 to 13{,}755\,$e^-$.
+
+You can see in Figure 4 that my data is strictly greater than the knee and tracks along the photon limit. My gain and intercept prediction suggest that with darker images they should align with the read-noise limited regime.
+Figure 5 shows my capped black level samples from Item 3 graphed confirming this.
+
+\task{10. NoiseProfile tag}
+{Check whether your DNG carries a NoiseProfile tag, which is the manufacturer's own noise model. If it is present, convert it into a gain and a read noise that can be compared against yours; the tag is written in units of normalized signal, so the conversion is a matter of carrying the white level minus the black level through the model.}
+{the vendor figures beside your own, or a statement that the tag is absent.}
+
+\noindent The tag is present and identical in every capture, with one $(S, O)$ pair per color plane (R, G, B). For the green plane, $S = 8.212 \times 10^{-5}$ and $O = 3.484 \times 10^{-7}$ (variance $= S\,x + O$ in normalized units), with $W - B = 1023 - 64 = 959$\,DN from the file.
+
+\[
+K_{\text{vendor}} = S\,(W - B), \qquad \sigma_{r,\text{vendor}} = \frac{\sqrt{O}\,(W - B)}{K_{\text{vendor}}}
+\]
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+ & Vendor (NoiseProfile) & Measured \\
+\midrule
+Gain $K$ (DN/$e^-$) & 0.0788 & 0.0691 \\
+Read noise $\sigma_r$ ($e^-$) & 7.19 & 8.75 \\
+Read variance $K^2\sigma_r^2$ (DN$^2$) & 0.320 & 0.365 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%======================================================================
+\section*{Part 4: Dark Current}
+
+\task{11. Dark current}
+{Fit the dark current from the capped frames you took in item 3 by plotting their mean against exposure time and converting the slope to electrons per second with your gain. Dark current roughly doubles for every 6 to 8 degrees Celsius, so note whether the phone was warm. If your longest available exposure is only a fraction of a second, the result may be indistinguishable from zero, and in that case an upper bound with an argument behind it is the correct answer.}
+{the figure, and the dark current in electrons per second with an uncertainty, or a defended upper bound.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/dark_current.pdf}
+  \caption{Mean dark-frame level (all pixels) of each of the 25 capped captures against exposure time (1/40, 1/10, 1, 2, and 16\,s), with a linear fit.}
+\end{figure}
+
+\noindent Fit: level $= 64.0110 + 0.05169\,t$\,DN, slope $0.05169 \pm 0.00043$\,DN/s.
+
+\noindent Dark current: $0.05169 / 0.0691 = 0.748 \pm 0.007\ e^-$/s, with the uncertainty combining the fit and the gain. Over the 16\,s exposure this is about $12\,e^-$ of dark signal.
+
+I did not have a temperature reading of my phone, and I use a case so I did not feel any unexpected heat. These photos were taken inside in the basement of the Engineering Building.
+
+%======================================================================
+\section*{Part 5: Linear Light}
+
+\task{12. Black-and-white checkerboard}
+{Construct a checkerboard of pure black and pure white pixels, exactly half of each, and compute its mean twice: once by averaging the sRGB-encoded values directly, and once by linearizing, averaging, and re-encoding.}
+{both values, and one sentence identifying which of them is the brightness a camera pointed at that checkerboard would have recorded.}
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Method & Mean (0--1) & Mean (8-bit) \\
+\midrule
+Average of encoded values & 0.5000 & 127.5 \\
+Linearize, average, re-encode & 0.7354 & 187.5 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The Color Science lecture slide deck contained several slides related to this exact question. The camera records half the light of pure white, which in sRGB is the linear-light result, 0.7354 (187.5 in 8-bit), not 0.5. The raw values recorded will average linearly so they are the brightness the camera will see.
+The sRGB encoding transforms according to a power law and thus a non-linear transformation.
+
+\task{13. Downsampling real data}
+{Take one of your checkerboard calibration captures from Exercise 1, extract a green plane, encode it to sRGB, and then reduce it by a factor of eight two ways: by averaging the encoded values, and by averaging in linear light and encoding afterward.}
+{the two reduced images and their difference, the mean absolute difference in 8-bit levels, and one sentence on where in the image the error concentrates.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/downsample_compare.png}
+  \caption{Factor-of-eight reduction of the G1 plane of \texttt{IMG\_20261002\_155544.dng} by averaging encoded values (left), by averaging in linear light (center), and their difference (right).}
+\end{figure}
+
+\noindent Mean absolute difference: 0.294 8-bit levels (maximum 8.88).
+
+The error concentrates along the edges of the checkerboard squares and the printed text, where each $8 \times 8$ block mixes dark and bright pixels, while flat regions, where the pixels in a block are nearly equal, show almost no difference. Because the sRGB curve is a power law that bends downward, averaging encoded values always comes out darker than averaging in linear light, and the gap grows with how different the averaged pixels are.
+
+%======================================================================
+\section*{Part 6: Reflections}
+
+\task{14/15. What did you learn and Questions for the instructor?}
+{What did you learn from this assignment? What questions, if any, do you have for me after completing this assignment?}
+{a brief written response.}
+
+I learned that noise in image processing is fascinating! It is interesting that there is so much noise that happens before we even get a DN value.
+Maybe more interesting is that we can characterize it from the flat-field captures.
+
+%======================================================================
+\section*{Use of AI Tools}
+\noindent\textit{You may use AI tools without limit on this assignment. If you do, add two sentences describing what you used them for and how you verified the output. Items 6 and 7 are the model for that verification: both fits run without complaint, both return a plausible conversion gain, and they disagree by a wide margin. Knowing which one to believe comes from knowing what is in the model and what is not, and no assistant can supply that for you.}\par\medskip
+
+AI tools (Claude by Anthropic) were used in the composition of this report. The tools were used for organizing LaTeX code and for writing various Python scripts to supplement the
+scripts provided by the instructor. The author of this report reviewed any code used, typically for fidelity against demonstrations from lecture. I also have a rule that if I cannot debug the code and understand the function calls and parameters then I either simplify the code or ask the agent to simplify it so that I can have a more confident understanding.
+Sometimes the tools were used to act as a tutor on concepts or to test the knowledge of the author. The agent uses material like the class text books for confirmation of knowledge so that I can go back to the sources directly.
+
+\end{document}

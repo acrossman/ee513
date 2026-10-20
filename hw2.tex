@@ -1,0 +1,315 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{siunitx}
+\usepackage[hidelinks]{hyperref}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!8},
+  columns=fullflexible
+}
+
+% Item heading, the instruction quoted from the assignment, and its deliverable
+\newcommand{\task}[3]{\subsection*{#1}{\sloppy\noindent\textit{#2}\par}\smallskip\noindent\textit{Deliverable: #3}\par\medskip}
+
+% Drafting helpers -- remove once everything is filled in
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{TODO:} #1}}
+\newcommand{\figplaceholder}[2][0.6\textwidth]{\fbox{\parbox[c][1.5in][c]{#1}{\centering\textcolor{gray}{\texttt{\detokenize{#2}}}}}}
+
+\title{EE 513 --- Measure Your Camera's Spatial Resolution}
+\author{Crow Crossman}
+\date{October 13, 2026}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Repository:} \url{https://github.com/acrossman/ee513}
+
+%======================================================================
+\section*{Part 1: Camera Geometry}
+
+\task{1. Camera calibration}
+{Calibrate your camera with \texttt{cv2.calibrateCamera} from at least 15 successful checkerboard detections, using the square size you measured in Exercise 1 rather than the nominal 20.0\,mm. Report the focal lengths in pixels and in millimeters, the principal point, the four distortion coefficients, and the RMS reprojection error. A handheld calibration from well-located corners should give an RMS below about 1 pixel; if yours is well above that, suspect the target before you suspect your code.}
+{labeled list of the calibration parameters with units.}
+
+17 out of 21 checkerboard images were recognized during calibration with the squares measuring 19 mm on each side. Note that $f_x$ and $f_y$ in mm are derived from data gathered later.
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Parameter & Value & Units \\
+\midrule
+$f_x$ & 3476.9896 & px \\
+$f_y$ & 3474.1701 & px \\
+$f_x$ & 5.0422 & mm \\ 
+$f_y$ & 5.3978 & mm \\
+Principal point $(c_x, c_y)$ & (2238.3339, 1736.186) & px \\
+$k_1$ & 0.0545 & --- \\
+$k_2$ & -0.2688 & --- \\
+$k_3$ & 0.3534 & --- \\ 
+$p_1$ & -0.0003 & --- \\
+$p_2$ & 0.0001 & --- \\ 
+RMS reprojection error & 1.0622287862417112 & px \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\task{2. Undistorted image}
+{Undistort an image that contains a long straight edge near the boundary of the frame, where distortion is largest.}
+{the original and undistorted images, side by side.}
+
+I was not able to capture any images that had a distinct visual distortion in my tests so I chose heuristically based on performance of the undistortion function.
+Below the correction in perpendicular deviation is for the first row of detected corners.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.48\textwidth]{figures/original.jpg}\hfill
+  \includegraphics[width=0.48\textwidth]{figures/undistorted.jpg}
+  \caption{Original (left) and undistorted (right) image.}
+\end{figure}
+
+\task{3. Straightness before and after undistortion}
+{Quantify that correction. Fit a straight line through one row of detected checkerboard corners and report the maximum perpendicular deviation of those corners from the fitted line, in pixels, before and after undistortion.}
+{two deviation values in pixels.}
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+ & Max.\ perpendicular deviation (px) \\
+\midrule
+Before undistortion & 1.180 px \\
+After undistortion & 0.934 px \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\task{4. Pixel pitch}
+{Compute your pixel pitch in micrometers as $1000\,f_{\text{mm}}/f_{\text{px}}$, where $f_{\text{mm}}$ is the focal length recorded in the EXIF metadata and $f_{\text{px}}$ is the mean of the two focal lengths in pixels from item 1. Then obtain it a second way, by a route that does not use your calibration at all: divide the 35\,mm equivalent focal length in the EXIF by the actual focal length to get the crop factor, divide the 43.3\,mm diagonal of 35\,mm film by the crop factor to get your sensor diagonal, and divide that by the image diagonal in pixels. Everything in Part 2 rests on this number, and the second route is the only warning you will get that the first one is wrong.}
+{both pitch values in micrometers, their percentage difference, and a statement of which you will use in Part 2 and why (2--3 sentences).}
+
+\noindent EXIF: $f_{\text{mm}} = $ 5.4 mm, \quad $f_{35} = $ 26.4 mm, \quad image size 4624x3472 px.
+
+\begin{align*}
+p_{\text{cal}} &= \frac{1000\, f_{\text{mm}}}{f_{\text{px}}} = \text{1.5537}\ \si{\micro\meter} \\
+\text{crop} &= f_{35}/f_{\text{mm}} = \text{4.8889}, \qquad
+d_{\text{sensor}} = 43.3\,\text{mm}/\text{crop} = \text{8.8568}\ \text{mm} \\
+p_{\text{EXIF}} &= \frac{1000\, d_{\text{sensor}}}{\sqrt{W^2 + H^2}} = \text{1.5317}\ \si{\micro\meter}
+\end{align*}
+
+\noindent Percentage difference: 1.4\%.
+
+Both methods resulted in values that were very similar so that is promising.
+It would suggest that the EXIF metadata is being reported correctly.
+I will note that the 35 mm equivalent data was missing for the Pixel 7a so I pulled it from the following site: \url{https://www.camerafv5.com/devices/manufacturers/google/pixel_7a_lynx_0/}.
+Since the larger value was derived from my calibration values I intend to use it for the rest of this report since it is specific to my camera and not an estimate.
+
+%======================================================================
+\section*{Part 2: Predicted Response}
+
+\noindent\textit{Throughout this part, $\lambda = 0.55\,\mu$m, $N$ is the EXIF f-number, and $p$ is the pixel pitch from item 4. The green plane is sampled at $2p$, so its Nyquist frequency is $1/(4p)$, while the photodiode aperture remains $p$. Diffraction contributes $\mathrm{MTF}_d(\nu) = \tfrac{2}{\pi}\left[\arccos(s) - s\sqrt{1-s^2}\right]$ with $s = \nu/\nu_c$ and $\nu_c = 1/(\lambda N)$; the photodiode contributes $\mathrm{MTF}_p(\nu) = |\mathrm{sinc}(\nu p)|$. The predicted response is their product.}\par\medskip
+
+\noindent Values used: $N = $ 1.9, \quad $p = $ 1.5537 \si{\micro\meter}.
+
+\task{5. Diffraction cutoff and Nyquist frequency}
+{Compute the diffraction cutoff $\nu_c$, the green-plane Nyquist frequency, and the ratio of the two.}
+{three values, each in cycles per micrometer and in cycles per millimeter.}
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Quantity & cycles/\si{\micro\meter} & cycles/mm \\
+\midrule
+Diffraction cutoff $\nu_c = 1/(\lambda N)$ & 0.9569 & 956.9378 \\
+Green-plane Nyquist $1/(4p)$ & 0.1609 & 160.9065 \\
+Ratio $\nu_c / \nu_{\text{Nyq}}$ & \multicolumn{2}{c}{5.9472 (dimensionless)} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\task{6. Binding limit and crossover f-number}
+{State whether diffraction or sampling is the binding limit for your camera, and find the f-number at which that answer would change by setting the diffraction cutoff equal to the full-sensor Nyquist frequency $1/(2p)$ and solving for $N$.}
+{the crossover f-number and a written explanation (2--4 sentences).}
+
+\[
+\frac{1}{\lambda N^*} = \frac{1}{2p} \quad\Longrightarrow\quad N^* = \frac{2p}{\lambda} = \text{5.6498}
+\]
+
+My lens is fixed so sampling is the limit for my camera. My phone's f-number is 1.9 and the limit at which this would change is 5.6498 which I cannot alter.
+
+\task{7. Predicted MTF curves}
+{Plot $\mathrm{MTF}_d(\nu)$, $\mathrm{MTF}_p(\nu)$, and their product from zero to $\nu_c$, with a vertical line marking the green-plane Nyquist frequency. Report the value of the product at that frequency.}
+{figure with labeled axes, and the predicted modulation at Nyquist.}
+
+\begin{figure}[H]
+  \centering
+  %\figplaceholder[0.75\textwidth]{figures/predicted_mtf.pdf}
+  \includegraphics[width=0.75\textwidth]{figures/predicted_mtf.pdf}
+  \caption{Predicted diffraction, pixel-aperture, and combined MTF. The dashed line marks the green-plane Nyquist frequency.}
+\end{figure}
+
+\noindent Predicted modulation at green-plane Nyquist: 0.708.
+
+\task{8. Predicted MTF50}
+{Determine the frequency at which the predicted response falls to 0.5, which is your predicted MTF50. If it lies above the Nyquist frequency, explain what that implies about aliasing and about which physical effect will actually set the MTF50 you measure in Part 4.}
+{predicted MTF50 in cycles per micrometer, and a written interpretation (2--4 sentences).}
+
+\noindent Predicted MTF50: 0.258 cycles/\si{\micro\meter}.
+
+Since the predicted MTF50 is 0.258 cycles per micrometer the expectation would be a roll off of contrast after that point. The Green Nyquist limit is 0.161 cycles per micrometer
+which means that I can expect some aliasing in the form of rippling. Apparently this rippling is called moire. The diffraction cuttoff is 0.9569 cycles per micrometer so as suggested
+in class abberations are likely to drive the issue.
+
+%======================================================================
+\section*{Part 3: Validating the Measurement}
+
+\noindent\textit{For a Gaussian PSF of standard deviation $\sigma$, the MTF falls to 0.5 at $\sqrt{\ln 2 / (2\pi^2\sigma^2)}$ cycles per pixel, which is 0.187 for $\sigma = 1.0$.}\par\medskip
+
+For this section I made heavy use of the provided demonstrative notebook often pulling the code directly since the loaded parameters matched the prompt.
+
+\task{9. Synthetic slanted edge}
+{Generate a synthetic slanted edge by tilting a step edge 5 degrees, convolving it with a Gaussian point spread function of standard deviation 1.0 pixel, and sampling the result on a pixel grid.}
+{image of the simulated capture.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.5\textwidth]{figures/synthetic_edge.png}
+  \caption{Simulated capture: step edge tilted $5^\circ$, blurred by a Gaussian PSF with $\sigma = 1.0$\,px.}
+\end{figure}
+
+\task{10. Slanted-edge MTF of the simulation}
+{Measure the modulation transfer function of that simulated capture with the code you will use on your own photographs.}
+{figures of the edge spread function, the line spread function, and the modulation transfer function.}
+
+\begin{figure}[H]
+  \centering
+  %\figplaceholder[\textwidth]{figures/synthetic_esf_lsf_mtf.pdf}
+  \includegraphics[width=\textwidth]{figures/synthetic_esf_lsf_mtf.png}
+  \caption{Edge spread function, line spread function, and MTF measured from the simulated capture.}
+\end{figure}
+
+\task{11. Validation against the analytic MTF50}
+{Compare the MTF50 your code reports against the analytic value above.}
+{measured MTF50, analytic MTF50, and the percentage error.}
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+ & MTF50 (cycles/px) \\
+\midrule
+Analytic & 0.1874 \\
+Measured & 0.1677 \\
+\midrule
+Error & 10.5\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%======================================================================
+\section*{Part 4: Measurement}
+
+\task{12. Slanted-edge captures}
+{Print the slanted edge target, tape it flat, and illuminate it evenly and off axis so that no specular highlight falls on an edge. Capture it at least five times in raw at 1x, without moving the target between captures.}
+{contact sheet of the captures.}
+
+\begin{figure}[H]
+  \centering
+  %\figplaceholder[\textwidth]{figures/edge_contact_sheet.jpg}
+  \includegraphics[width=\textwidth]{figures/edge_contact_sheet.jpg}
+  \caption{Contact sheet of the slanted-edge captures.}
+\end{figure}
+
+\task{13. Same-camera check}
+{Confirm with the \texttt{lens\_id} assertion from the Project 1 page that every capture came from the same camera.}
+{the assertion passing, or an account of which captures came from a different camera.}
+
+\begin{lstlisting}
+lens_id assertion passed for 10 captures: ('Pixel 7a', 5.43, None, (4624, 3472))
+\end{lstlisting}
+
+\task{14. Green-plane extraction}
+{Extract one green plane from the Bayer mosaic of each capture and subtract the black level, so that the data are linear in scene radiance.}
+{one extracted green plane displayed, and a statement of which green plane and which black level you used.}
+
+\begin{figure}[H]
+  \centering
+  %\figplaceholder[0.6\textwidth]{figures/green_plane.png}
+  \includegraphics[width=0.6\textwidth]{figures/green_plane.png}
+  \caption{Black-subtracted green plane from one capture.}
+\end{figure}
+
+The sensor uses an RGGB color filter pattern, so each $2 \times 2$ tile holds two green samples. I used $G_1$, the green at row 0, column 1 of each tile. The DNG reports a black level of 64\,DN on all four channels and a white level of 1023\,DN, so each plane was normalized as $(\text{raw} - 64)/(1023 - 64)$.
+
+
+\task{15. Measured MTF50}
+{Measure MTF50 on the central square of the target in each of your captures, and report the mean and standard deviation across them.}
+{MTF50 as mean $\pm$ standard deviation, in cycles per micrometer and in cycles per green-plane pixel.}
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Capture & MTF50 (cycles/green px) & MTF50 (cycles/\si{\micro\meter}) \\
+\midrule
+1 (\texttt{123553}) & 0.192 & 0.0619 \\
+2 (\texttt{123554}) & 0.187 & 0.0602 \\
+3 (\texttt{123555}) & 0.184 & 0.0591 \\
+4 (\texttt{123556}) & 0.169 & 0.0545 \\
+5 (\texttt{123557}) & 0.182 & 0.0587 \\
+6 (\texttt{123558}) & 0.180 & 0.0580 \\
+7 (\texttt{123559}) & 0.176 & 0.0565 \\
+8 (\texttt{123600}) & 0.180 & 0.0578 \\
+9 (\texttt{123601}) & 0.177 & 0.0570 \\
+10 (\texttt{123602}) & 0.175 & 0.0563 \\
+\midrule
+Mean $\pm$ std & $0.180 \pm 0.007$ & $0.0580 \pm 0.0021$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\task{16. Prediction vs.\ measurement}
+{Compare your measurement against your prediction by reporting the predicted modulation at the Nyquist frequency from item 7 alongside the measured value at the same frequency. The prediction accounted for diffraction and the photodiode aperture only. Identify the effects present in the real system that it omitted, state which one you believe dominates, and describe a measurement that would distinguish between them.}
+{predicted and measured modulation at Nyquist, and a written analysis (4--5 sentences).}
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+ & Modulation at green-plane Nyquist \\
+\midrule
+Predicted (item 7) & 0.708 \\
+Measured (mean $\pm$ std, 10 captures) & $0.10 \pm 0.01$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+My prediction was significant'y different that my measured value. Since the prediction only took into consideration diffraction and photodiode aperture, I believe that abberations must
+be the driving factor. Since abberations cover a wide variety of items I imagine that for this particular case the following would apply: I printed the target from a public access printer
+which uses low resolution and cheap ink and paper, and I definitely had some shaking in my hands as I took photos. If I could change the f-number of the lens then that could be a way to
+distinguish between diffraction and abberations.
+%======================================================================
+\section*{Part 5: Reflections}
+
+\task{17/18. What did you learn and Questions for the instructor?}
+{What did you learn from this assignment?}
+{a brief written response.}
+
+There was quite a bit to cover in this assignment, and some of it I am still digesting. The narrative that has been created between photons and getting to the MTF still has
+moments that I am not quite confident about.
+
+%======================================================================
+\section*{Use of AI Tools}
+\noindent\textit{You may use AI tools without limit on this assignment. If you do, add two sentences describing what you used them for and how you verified the output. Items 9 through 11 are the model for that verification: an assistant will write you a slanted-edge routine in seconds, it will return a plausible number whether or not it is correct, and the only way to find out which is to run it on a case whose answer you can derive independently.}\par\medskip
+
+AI tools (Claude by Anthropic) were used in the composition of this report. The tools were used for organizing LaTeX code and for writing various Python scripts to supplement the
+scripts provided by the instructor. The author of this report reviewed any code used. Sometimes the tools were used to act as a tutor on concepts or to test the knowledge of the author.
+I also want to note that the following site \url{https://www.strollswithmydog.com/the-slanted-edge-method/} was particularly helpful in explanation of concepts as well.
+
+\end{document}
