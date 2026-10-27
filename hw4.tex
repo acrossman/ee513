@@ -1,0 +1,499 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{siunitx}
+\usepackage[hidelinks]{hyperref}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!8},
+  columns=fullflexible
+}
+
+% Item heading, the instruction quoted from the assignment, and its deliverable
+\newcommand{\task}[3]{\subsection*{#1}{\sloppy\noindent\textit{#2}\par}\smallskip\noindent\textit{Deliverable: #3}\par\medskip}
+
+% Drafting helpers -- remove once everything is filled in
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{TODO:} #1}}
+\newcommand{\review}[1]{\textcolor{blue}{\textbf{REVIEW:}} #1}
+\newcommand{\figplaceholder}[2][0.6\textwidth]{\fbox{\parbox[c][1.5in][c]{#1}{\centering\textcolor{gray}{\texttt{\detokenize{#2}}}}}}
+
+\title{EE 513 --- Color and Accuracy}
+\author{Crow Crossman}
+\date{October 27, 2026}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Captures.} Three ColorChecker Classic Mini charts in four rounds, each three chart photos followed by one photo of a white sheet. The lights were: First, overhead fluorescent; Second, LED; Third, incandescent; Fourth, outdoors near dusk. The charts were photographed in the same order in every round, so chart 1 is the same physical chart throughout.
+
+%======================================================================
+\section*{Part 1: From raw file to patch values}
+
+\task{1. Inventory and clipping}
+{Inventory your captures and confirm that every one of them is a Bayer raw file from the same camera, and that the ISO and exposure time are identical within each round. Then check every frame for clipping, which is the one defect that cannot be repaired afterwards. Do not take the white level recorded in the file on trust: histogram the raw values and look for a spike at the top of the range.}
+{A list of your files with the round, chart, ISO, and exposure time of each, the lens\_id assertion from the Project 1 page passing across all of them, the raw value at which your files actually saturate, and the fraction of each frame that reaches it.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.62\textwidth]{figures/item1_contact_sheet.jpg}
+  \caption{Every capture in time order: three charts, then the white sheet, for each round. Not white balanced.}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lllccr}
+\toprule
+File & Round & Chart & ISO & Exposure (s) & Fraction at 1023 \\
+\midrule
+\csname @@input\endcsname figures/capture_table.tex % rows written by hw4.ipynb (primitive input: \input breaks inside a table)
+\bottomrule
+\end{tabular}
+\caption{All 16 captures, 20 October 2026. File names are \texttt{IMG\_20261020\_<time>.dng}. ``Fraction at 1023'' is the fraction of the frame's pixels at the saturation value.}
+\end{table}
+
+\begin{lstlisting}
+lens_id assertion passed for all 16 files: ('Pixel 7a', 5.43, None, (4624, 3472))
+Every round: one ISO and one exposure time.
+\end{lstlisting}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/item1_histogram_top.pdf}
+  \caption{Top of the histogram of the brightest frame (First round white sheet, \texttt{173431}). The spike sits at 1023.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/item1_white_histograms.pdf}
+  \caption{Whole raw histogram of the white sheet in each round (log scale). Gray dashed line: black level, 64\,DN. Red dashed line: saturation, 1023\,DN.}
+\end{figure}
+
+\noindent The files saturate at \textbf{1023\,DN}, the white level written in the file and shown by the histogram from the "worst" clipping image.
+The brightest frame has 102 pixels at 1023 showing a sharp rise against the 10--31 right before it. No other captures push this boundary.
+The First round's chart 1 comes closest (raw maximum 1003).
+
+\task{2. Linear color at quarter resolution}
+{Convert one capture to linear color without demosaicing it. Subtract the black level, divide by the span from black up to the saturation value you measured in item 1, and then take each 2 by 2 block of the mosaic to one pixel of a quarter resolution image, using the red site, the mean of the two green sites, and the blue site. Read the mosaic order from the file rather than assuming it is RGGB.}
+{The quarter resolution image displayed, and a statement of the CFA pattern, the black level, and the saturation value you used.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.45\textwidth]{figures/item2_quarter_res.jpg}
+  \caption{Third round chart 1 (\texttt{174844}), linear quarter resolution ($2312\times1736$), no white balance.}
+\end{figure}
+
+\noindent CFA pattern (read from the file): \textbf{RGGB}. Black level: \textbf{64\,DN} per channel (the tag says 64.01; rawpy rounds to 64). Saturation: \textbf{1023\,DN} (item 1).
+
+\noindent Each raw value $d$ is linearized with the black level $b$ and the saturation value $s$, so that 0 is black and 1 is saturation:
+\[
+x = \frac{d - b}{s - b} = \frac{d - 64}{1023 - 64}.
+\]
+Each $2\times2$ RGGB block $(2i,\,2j)$ of the mosaic then becomes one pixel $(i,\,j)$ of the quarter-resolution image:
+\[
+R_{ij} = x_{2i,\,2j}, \qquad
+G_{ij} = \tfrac{1}{2}\left(x_{2i,\,2j+1} + x_{2i+1,\,2j}\right), \qquad
+B_{ij} = x_{2i+1,\,2j+1},
+\]
+where $x_{m,n}$ is the linearized value at row $m$, column $n$ of the mosaic.
+
+\task{3. Lens shading}
+{Correct that capture for lens shading using the white sheet from the same round. Normalize the flat field to its own center and divide, treating each of the three channels separately. Then normalize the white sheet from every round the same way and plot a horizontal profile through the center of each on one axis.}
+{The capture before and after correction; the ratio of a region at the corner of the frame to the same region at its center, measured on the white sheet itself, before and after; the profiles from all your rounds on one axis; and one sentence on what the comparison tells you.}
+
+\noindent Let $W_c(i,j)$ be the quarter-resolution white sheet from item 2 in channel $c \in \{R, G, B\}$. It is divided by its own mean over a central box $\mathcal{C}$ (the middle tenth of the frame in each direction, $172\times230$\,px):
+\[
+F_c(i,j) = \frac{W_c(i,j)}{\langle W_c \rangle_{\mathcal{C}}},
+\qquad
+\langle W_c \rangle_{\mathcal{C}} = \frac{1}{|\mathcal{C}|}\sum_{(i,j)\in\mathcal{C}} W_c(i,j).
+\]
+The chart image $I_c$ is corrected one channel at a time:
+\[
+I'_c(i,j) = \frac{I_c(i,j)}{F_c(i,j)}.
+\]
+The corner-to-center ratio compares a box $\mathcal{K}$ in the top-left corner with a box $\mathcal{M}$ of the same size at the center (each a sixth of the frame in each direction, $288\times384$\,px):
+\[
+r_c = \frac{\langle W_c \rangle_{\mathcal{K}}}{\langle W_c \rangle_{\mathcal{M}}}
+\quad\text{(before)},
+\qquad
+r'_c = \frac{\langle W_c / F_c \rangle_{\mathcal{K}}}{\langle W_c / F_c \rangle_{\mathcal{M}}}
+\quad\text{(after)}.
+\]
+The profile of each round is the middle row of its flat field, $F_c(h/2,\,j)$, plotted against $j/w$, where $h$ and $w$ are the image height and width.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/item3_before_after.jpg}
+  \caption{Third round chart 1 before (left) and after (right) dividing by the Third round white sheet, normalized to its center, per channel.}
+\end{figure}
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Corner / center & R & G & B \\
+\midrule
+Third round white sheet, before & 0.317 & 0.394 & 0.383 \\
+Third round white sheet, after (divided by itself) & 1.000 & 1.000 & 1.000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The ``after'' ratio is 1 by construction.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/item3_profiles.pdf}
+  \caption{Horizontal profile through the center of each round's white sheet, normalized to its center, one panel per round with the R, G and B channels.}
+\end{figure}
+
+All four rounds share the same basic falloff, bright at the center and down to about 0.35--0.6 of the center at the edges in every channel, so most of the shading belongs to the lens. The rounds do not match exactly: the First and Fourth rounds are brighter on the left (about 0.5--0.6 against 0.35--0.4 at the right edge) while the Second and Third are symmetric, and with the noise averaged out the profiles differ by up to 0.16.
+\task{4. The 24 patches}
+{Locate the twenty four patches and extract their mean linear RGB. Sample well inside each patch, no more than the middle half of it, so that the black separators and any edge artifacts stay out of the average.}
+{A figure showing the regions you sampled drawn on the chart, and your 24 by 3 table of patch means.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.5\textwidth]{figures/item4_sampled.jpg}
+  \caption{Sampled regions on Third round chart 1. Each region is half the patch width across.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{figures/item4_all_charts.jpg}
+  \caption{Sampled regions on all 12 chart photos.}
+\end{figure}
+
+\noindent Patches are found with OpenCV's ColorChecker detector (\texttt{cv2.mcc}), which returns an outline of each patch already numbered as in the reference set. It is given an 8-bit, gamma-encoded copy of each chart, taken before the shading correction (which does not move the patches); that copy is used only to find the patches, and every mean is taken from the linear, shading-corrected image. The detector found the chart in all 12 photos. Each outline is shrunk about its center to half the patch width: measured on the bright neutral patches of each chart, the sampled region is 0.46--0.50 of the patch width (patches 145--199\,px wide), and no sampled pixel is clipped.
+
+\begin{center}
+\small
+\begin{tabular}{rlccc}
+\toprule
+\# & Patch & R & G & B \\
+\midrule
+1 & dark skin & 0.0213 & 0.0190 & 0.0061 \\
+2 & light skin & 0.0658 & 0.0554 & 0.0188 \\
+3 & blue sky & 0.0204 & 0.0305 & 0.0145 \\
+4 & foliage & 0.0175 & 0.0246 & 0.0073 \\
+5 & blue flower & 0.0366 & 0.0402 & 0.0194 \\
+6 & bluish green & 0.0367 & 0.0717 & 0.0275 \\
+7 & orange & 0.0690 & 0.0475 & 0.0113 \\
+8 & purplish blue & 0.0142 & 0.0210 & 0.0134 \\
+9 & moderate red & 0.0618 & 0.0345 & 0.0121 \\
+10 & purple & 0.0170 & 0.0136 & 0.0067 \\
+11 & yellow green & 0.0485 & 0.0710 & 0.0176 \\
+12 & orange yellow & 0.0831 & 0.0684 & 0.0157 \\
+13 & blue & 0.0068 & 0.0107 & 0.0080 \\
+14 & green & 0.0156 & 0.0355 & 0.0102 \\
+15 & red & 0.0489 & 0.0236 & 0.0082 \\
+16 & yellow & 0.0878 & 0.0906 & 0.0209 \\
+17 & magenta & 0.0584 & 0.0334 & 0.0149 \\
+18 & cyan & 0.0127 & 0.0325 & 0.0175 \\
+19 & white & 0.1031 & 0.1290 & 0.0471 \\
+20 & neutral 8 & 0.0672 & 0.0860 & 0.0316 \\
+21 & neutral 6.5 & 0.0415 & 0.0526 & 0.0193 \\
+22 & neutral 5 & 0.0221 & 0.0277 & 0.0103 \\
+23 & neutral 3.5 & 0.0118 & 0.0148 & 0.0056 \\
+24 & black & 0.0061 & 0.0076 & 0.0028 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent Mean linear RGB of Third round chart 1, in reference order, black subtracted and shading corrected; 1 is the saturation value. Note that relative the portrait orientation of the charts this starts counting from the bottom left corner and goes upward.
+
+%======================================================================
+\section*{Part 2: White balance and the color matrix}
+
+\noindent\textit{Reference: the ColorChecker24 ``After November 2014'' set in colour-science, converted from xyY to XYZ. Each side is converted to CIELAB against its own white patch (patch 19, unclipped in every round). Metric: CIEDE2000. Primary illuminant: the Third round, incandescent.}\par\medskip
+
+\task{5. White balance gains}
+{Fit the white balance gains from the neutral patches, which are patches 19 through 24 of the reference set, and apply them to all twenty four. Before you do, confirm that your patch numbering matches that set. Set the gains from an unclipped mid gray patch rather than from the white one.}
+{The three gains, normalized to the green channel, and the patch means after balancing.}
+
+\noindent\textbf{Numbering.} The charts are upside down in every photo; the detector works out the orientation itself and returns the patches in reference order. Two checks confirm the numbering on all 12 charts: patches 19--24 get darker in order, and patch 1 (dark skin) is redder than it is blue.
+
+\noindent\textbf{Gains.} Let $(R_p, G_p, B_p)$ be the mean camera RGB of patch $p$ from item 4. A neutral patch should give $R = G = B$, so the gains are set from patch 21 (neutral 6.5) and normalized to green:
+\[
+g_R = \frac{G_{21}}{R_{21}}, \qquad g_G = 1, \qquad g_B = \frac{G_{21}}{B_{21}}.
+\]
+Every patch is balanced with the same gains and then scaled by one number $k$, so that white's green equals the published white $Y_{19}^{\text{ref}} = 0.881$:
+\[
+\mathbf{c}_p = k \begin{pmatrix} g_R R_p \\ G_p \\ g_B B_p \end{pmatrix},
+\qquad
+k = \frac{Y_{19}^{\text{ref}}}{G_{19}}.
+\]
+$k$ changes only the overall brightness (the exposure), never a ratio between channels.
+
+\noindent Gains from patch 21: $g_R = 1.267$, $g_G = 1$, $g_B = 2.719$.
+
+\begin{center}
+\small
+\begin{tabular}{rlccc@{\hspace{2em}}rlccc}
+\toprule
+\# & Patch & R & G & B & \# & Patch & R & G & B \\
+\midrule
+1 & dark skin & 0.184 & 0.129 & 0.114 & 13 & blue & 0.059 & 0.073 & 0.149 \\
+2 & light skin & 0.569 & 0.378 & 0.349 & 14 & green & 0.135 & 0.242 & 0.189 \\
+3 & blue sky & 0.176 & 0.208 & 0.268 & 15 & red & 0.423 & 0.161 & 0.153 \\
+4 & foliage & 0.151 & 0.168 & 0.135 & 16 & yellow & 0.759 & 0.619 & 0.387 \\
+5 & blue flower & 0.316 & 0.275 & 0.359 & 17 & magenta & 0.505 & 0.228 & 0.277 \\
+6 & bluish green & 0.318 & 0.490 & 0.511 & 18 & cyan & 0.110 & 0.222 & 0.325 \\
+7 & orange & 0.596 & 0.324 & 0.210 & 19 & white & 0.892 & 0.881 & 0.874 \\
+8 & purplish blue & 0.122 & 0.144 & 0.249 & 20 & neutral 8 & 0.581 & 0.587 & 0.586 \\
+9 & moderate red & 0.534 & 0.236 & 0.225 & 21 & neutral 6.5 & 0.359 & 0.359 & 0.359 \\
+10 & purple & 0.147 & 0.093 & 0.124 & 22 & neutral 5 & 0.191 & 0.189 & 0.191 \\
+11 & yellow green & 0.420 & 0.485 & 0.327 & 23 & neutral 3.5 & 0.102 & 0.101 & 0.103 \\
+12 & orange yellow & 0.718 & 0.467 & 0.291 & 24 & black & 0.053 & 0.052 & 0.053 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent Patch means after balancing, scaled so white's green equals the published white $Y = 0.881$ (the scale only removes exposure).
+
+\task{6. Error before any matrix}
+{Report the error before any matrix is fitted, by treating your white balanced camera RGB as though it were linear sRGB and converting it to XYZ with the standard sRGB primaries.}
+{Mean and worst $\Delta E$ across the twenty four patches, and the name of the metric.}
+
+\noindent\textbf{sRGB primaries.} The standard sRGB primaries and white point (IEC 61966-2-1), as CIE 1931 chromaticities:
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+ & $x$ & $y$ \\
+\midrule
+Red & 0.6400 & 0.3300 \\
+Green & 0.3000 & 0.6000 \\
+Blue & 0.1500 & 0.0600 \\
+White (D65) & 0.3127 & 0.3290 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Each column of the matrix below is the XYZ of one primary at full strength, scaled so that $R = G = B = 1$ gives the D65 white with $Y = 1$. The chromaticities above are recovered from the columns as $x = X/(X+Y+Z)$ and $y = Y/(X+Y+Z)$.
+
+\noindent\textbf{To XYZ.} The balanced camera RGB $\mathbf{c}_p$ is treated as linear sRGB and converted with these primaries:
+\[
+\begin{pmatrix} X_p \\ Y_p \\ Z_p \end{pmatrix} =
+\begin{pmatrix} 0.4125 & 0.3576 & 0.1804 \\ 0.2127 & 0.7152 & 0.0722 \\ 0.0193 & 0.1192 & 0.9503 \end{pmatrix}
+\mathbf{c}_p .
+\]
+
+\noindent\textbf{To CIELAB.} Both the measurement and the reference are converted to CIELAB against their own white patch, $(X_n, Y_n, Z_n) = (X_{19}, Y_{19}, Z_{19})$:
+\[
+L^* = 116\, f\!\left(\tfrac{Y}{Y_n}\right) - 16, \qquad
+a^* = 500\left[f\!\left(\tfrac{X}{X_n}\right) - f\!\left(\tfrac{Y}{Y_n}\right)\right], \qquad
+b^* = 200\left[f\!\left(\tfrac{Y}{Y_n}\right) - f\!\left(\tfrac{Z}{Z_n}\right)\right],
+\]
+\[
+f(t) = \begin{cases} t^{1/3} & t > (6/29)^3 \\[2pt] \dfrac{t}{3\,(6/29)^2} + \dfrac{4}{29} & \text{otherwise.} \end{cases}
+\]
+
+\noindent\textbf{Color difference.} CIEDE2000 compares the two $L^*a^*b^*$ values of each patch through differences in lightness, chroma and hue, $\Delta L'$, $\Delta C'$ and $\Delta H'$ (formula: Sharma, Wu \& Dalal, 2005; plain-language explanation: C.~Stanza and J.~Qian, ``Delta E: Demystifying the CIE $\Delta E$ 2000 Formula,'' Techkon, \url{https://techkon.datacolor.com/demystifying-the-cie-delta-e-2000-formula/}):
+\[
+\Delta E_{00} = \sqrt{\left(\frac{\Delta L'}{S_L}\right)^2 + \left(\frac{\Delta C'}{S_C}\right)^2 + \left(\frac{\Delta H'}{S_H}\right)^2 + R_T \frac{\Delta C'}{S_C}\frac{\Delta H'}{S_H}},
+\]
+where $S_L$, $S_C$, $S_H$ weight each term by where the color sits and $R_T$ corrects the blue region. The parametric factors $k_L = k_C = k_H = 1$ are left out. The mean and the worst are taken over the 24 patches:
+\[
+\overline{\Delta E}_{00} = \frac{1}{24}\sum_{p=1}^{24} \Delta E_{00,p}, \qquad
+\Delta E_{00}^{\max} = \max_p \Delta E_{00,p}.
+\]
+
+\noindent CIEDE2000, white balance only: mean \textbf{10.88}, worst \textbf{17.93} (yellow).
+
+\task{7. The color matrix}
+{Fit the three by three matrix that best maps your white balanced camera RGB to the reference XYZ in a least squares sense across all twenty four patches.}
+{The matrix, and one sentence on whether its rows sum to something close to preserving a neutral.}
+
+\[
+M = \begin{pmatrix} 0.3816 & 0.4248 & 0.0735 \\ -0.0442 & 1.0771 & -0.0966 \\ -0.0857 & -0.7815 & 1.6097 \end{pmatrix}
+\qquad
+\text{row sums } (0.880,\ 0.936,\ 0.743)
+\]
+
+\noindent The row sums are the XYZ the matrix gives a camera neutral $(1,1,1)$; as ratios they are $0.940 : 1 : 0.793$, against $0.958 : 1 : 0.788$ for the reference white. The six neutral patches of the reference set, for comparison:
+
+\begin{center}
+\begin{tabular}{rlccccc}
+\toprule
+\# & Patch & $X$ & $Y$ & $Z$ & $X/Y$ & $Z/Y$ \\
+\midrule
+19 & white 9.5 & 0.8437 & 0.8807 & 0.6937 & 0.958 & 0.788 \\
+20 & neutral 8 & 0.5665 & 0.5900 & 0.4828 & 0.960 & 0.818 \\
+21 & neutral 6.5 & 0.3496 & 0.3649 & 0.3014 & 0.958 & 0.826 \\
+22 & neutral 5 & 0.1835 & 0.1906 & 0.1567 & 0.963 & 0.822 \\
+23 & neutral 3.5 & 0.0845 & 0.0882 & 0.0739 & 0.958 & 0.838 \\
+24 & black 2 & 0.0304 & 0.0315 & 0.0266 & 0.965 & 0.843 \\
+\midrule
+ & Row sums of $M$ & 0.880 & 0.936 & 0.743 & 0.940 & 0.793 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent Published XYZ of the ColorChecker24 ``After November 2014'' set, converted from xyY.
+
+Based on the XYZ of the "neutrals" from the color chart, the row sums are comparable to white 9.5 and neutral 3.5.
+
+\task{8. Error after the matrix}
+{Apply the matrix and report the error again. Identify which patches remain the worst, and explain in three or four sentences why the residual does not fall to zero no matter how good the fit is.}
+{A figure of per patch $\Delta E$ before and after, the mean and worst value for each, the names of the two or three worst patches, and your written explanation.}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/item8_de_per_patch.pdf}
+  \caption{Per-patch CIEDE2000, Third round chart 1, before and after the matrix.}
+\end{figure}
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+CIEDE2000 & Mean & Worst \\
+\midrule
+White balance only & 10.88 & 17.93 (yellow) \\
+Plus $3\times3$ matrix & 4.37 & 11.15 (red) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Worst three after the matrix: \textbf{red} (11.15), \textbf{cyan} (7.75), \textbf{bluish green} (6.95).
+
+The camera's color filters are not a linear combination of the eye's color matching functions described as "the Luther condition" based on the lectures, so the camera is a different observer from the human eye. Two surfaces can match for the eye but not for the camera, and the reverse as a sol-called "metamerism", so no single $3\times3$ matrix, however well fitted, can be right for every spectrum. Red, cyan and bluish green are likely worst because saturated colors put their light in narrow bands near the ends of the visible spectrum, where the camera's curves and the eye's differ most.
+
+%======================================================================
+\section*{Part 3: How much of this belongs to the chart?}
+
+\task{9. Three charts}
+{Repeat items 5 through 8 independently for all three charts photographed under one illuminant of your choosing, and report the three mean $\Delta E$ values and the three matrices. Keep track of which chart is which.}
+{Three mean and three worst $\Delta E$ values, and a comment on whether the three matrices resemble one another. Compare their columns as directions rather than element by element.}
+
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+Third round chart & Before: mean & Before: worst & After: mean & After: worst \\
+\midrule
+1 & 10.88 & 17.93 & 4.37 & 11.15 (red) \\
+2 & 10.41 & 18.03 & 3.45 & 10.38 (red) \\
+3 & 10.63 & 18.18 & 3.50 & 10.60 (red) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\[
+M_1 = \begin{pmatrix} 0.382 & 0.425 & 0.073 \\ -0.044 & 1.077 & -0.097 \\ -0.086 & -0.781 & 1.610 \end{pmatrix}
+\qquad
+M_2 = \begin{pmatrix} 0.432 & 0.471 & 0.031 \\ -0.034 & 1.165 & -0.143 \\ -0.086 & -0.827 & 1.702 \end{pmatrix}
+\]
+\[
+M_3 = \begin{pmatrix} 0.426 & 0.446 & 0.054 \\ -0.037 & 1.149 & -0.131 \\ -0.079 & -0.877 & 1.732 \end{pmatrix}
+\]
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Angle between matching columns & R column & G column & B column \\
+\midrule
+Chart 1 vs 2 & 2.46\textdegree & 0.79\textdegree & 2.07\textdegree \\
+Chart 1 vs 3 & 2.65\textdegree & 1.42\textdegree & 1.20\textdegree \\
+Chart 2 vs 3 & 0.91\textdegree & 2.18\textdegree & 0.88\textdegree \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\textwidth]{figures/item9_column_directions.pdf}
+  \caption{The three columns of each chart's matrix as directions in XYZ: each column divided by its own length, drawn as an arrow from the origin. Color: the camera channel the column belongs to. Marker: the chart. The angles in the table above are the angles between arrows of the same color.}
+\end{figure}
+
+Yes they are comparable as seen in the values in the table above as well as the 3d plot. Matching columns of the three matrices point within 2.65\textdegree\ of each other at worst, so the fit is set by the camera and the light rather than by the chart.
+Chart 1 is the most "mismatched" with the largest angles and the highest mean $\Delta E$ (4.37 against 3.45 and 3.50).
+
+\task{10. Color accuracy with an uncertainty}
+{Use the spread across those three charts as the uncertainty on your color accuracy, and record your results.}
+{Your mean $\Delta E$ after correction as a value with an uncertainty, and the five color entries of your Project 1 results.json.}
+
+\noindent Mean CIEDE2000 after correction: $\mathbf{3.77 \pm 0.51}$ (standard deviation over three charts). Before correction: $10.64 \pm 0.24$. Worst patch after correction: $10.71 \pm 0.40$, red on all three charts.
+
+\begin{lstlisting}
+"color_metric": "CIEDE2000",
+"color_reference": "ColorChecker24 - After November 2014",
+"delta_e_mean_before": [10.64, 0.24],
+"delta_e_mean_after": [3.77, 0.51],
+"delta_e_worst_after": [10.71, 0.4]
+\end{lstlisting}
+
+%======================================================================
+\section*{Part 4: How much of it belongs to the illuminant?}
+
+\task{11--12. Carry the matrix to the other two illuminants}
+{Take the matrix you fitted in item 7, apply it unchanged to the same chart photographed under the second illuminant, and report the error. Refit the white balance gains for the new illuminant, but do not refit the matrix. Then scale the balanced values so that your reference neutral matches its published value before you compute $\Delta E$. Do the same for the third illuminant.}
+{Mean and worst $\Delta E$ under the second and third illuminants beside the values under the first, and a single figure comparing per patch $\Delta E$ across all three.}
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Light (matrix from the Third round) & Mean & Worst & Matrix refitted here \\
+\midrule
+Third: incandescent (fitted here) & $3.77 \pm 0.51$ & $10.71 \pm 0.40$ & $3.77 \pm 0.51$ \\
+Second: LED & $4.23 \pm 0.22$ & $15.39 \pm 1.35$ & $3.26 \pm 0.45$ \\
+Fourth: outdoors near dusk & $8.17 \pm 0.47$ & $29.41 \pm 1.02$ & $3.39 \pm 0.30$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent CIEDE2000, mean $\pm$ standard deviation over the three charts, each chart carrying its own matrix.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/item12_transfer.pdf}
+  \caption{Per-patch CIEDE2000 (mean of three charts) with the Third round matrix applied unchanged under each light.}
+\end{figure}
+
+\task{13. Interpretation}
+{State which transfer degraded more, say whether the degradation tracks the change in color temperature or the change in spectral shape, and explain what that implies about whether a single matrix stored in a camera can be correct under every light.}
+{A written analysis, four to six sentences, referring to your own numbers.}
+
+\begin{center}
+\begin{tabular}{llcc}
+\toprule
+Round & Light & $g_R$ & $g_B$ \\
+\midrule
+First & fluorescent & 1.601 & 2.577 \\
+Second & LED & 1.386 & 2.761 \\
+Third & incandescent & 1.261 & 2.713 \\
+Fourth & outdoors near dusk & 2.078 & 1.537 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent White balance gains (mean of three charts, green = 1). Similar gains mean a similar color temperature. The DNG itself carries calibrations for two lights, Standard Illuminant A (tungsten) and D65 (daylight).
+
+The outdoor transfer degraded far more (mean $\Delta E_{00}$ 3.77 to 8.17) than the LED transfer (3.77 to 4.23). The LED and incandescent rounds need nearly the same gains, so they have a similar color temperature with very different spectra; the mean barely moved, but the worst patch still rose from 10.71 to 15.39, so spectral shape does matter. The outdoor gains are reversed ($g_R = 2.08$, $g_B = 1.54$), a very different color temperature, and the oranges and yellows fail worst (orange 29.4, yellow 25.4, orange yellow 24.0). The degradation therefore tracks color temperature more than spectral shape, with the caveat that the outdoor light near dusk included some street lighting and is probably not a smooth spectrum. Refitting the matrix under each light brings every round back to 3.26--3.77, so the camera can be corrected under any one light but no single stored matrix is right under all of them.
+A single matrix cannot account for all possible temperature and spectra.
+
+%======================================================================
+\section*{Part 5: Reflections}
+
+\task{14/15. What did you learn and Questions for the instructor?}
+{What did you learn from this assignment? What questions, if any, do you have for me after completing this assignment?}
+{a brief written response.}
+
+It was interesting to explore the idea that what we as humans perceive will be perceived in a different form by a lens.
+Similarly, no two lenses are absolutely the same and so they will "see" things differently.
+I am always a fan of putting numbers to qualities like similarity and dissimilarity so this exploration of color calibration was fun.
+I am curious about extending this to sensors that still use a lens but do not have the goal of calibrating for human eyes.
+
+For question 15, none, I do not have any questions this week.
+
+
+\section*{Use of AI Tools}
+\noindent\textit{You may use AI tools without limit on this assignment. If you do, add two sentences describing what you used them for and how you verified the output. Items 9 and 10 are the model for that verification: a color correction matrix fitted to twenty four patches will always produce a matrix and always produce a $\Delta E$, and the only way to learn what that number is worth is to produce it three times from three charts that should agree.}\par\medskip
+
+AI tools (Claude by Anthropic) were used to organize the \LaTeX, to write Python that supplements the instructor's lecture 6 demo, and as a tutor on various concepts.
+I reviewed the code against the demo and simplified anything I could not follow. My own style of code is inefficient but easy for me to debug so I look for the same from the robots.
+For this assignment, as I worked through question by question I would ask for figures and tables of values so that I could validate the process and decide whether it was appropriate.
+To this end sometimes there are figures that were not asked for, but helped me in my interpretations.
+
+\end{document}
