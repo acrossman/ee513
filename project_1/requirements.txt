@@ -1,0 +1,9 @@
+# Exact versions that produced the published values (Python 3.12)
+numpy==2.5.3
+scipy==1.18.1
+matplotlib==3.11.2
+opencv-contrib-python==5.0.0.93
+rawpy==0.27.1
+tifffile==2026.9.20
+colour-science==0.4.7
+pytest==9.1.1

@@ -1,0 +1,17 @@
+{
+  "screen_px": [
+    1920,
+    1080
+  ],
+  "square_side_px": 594,
+  "tilt_deg": 5.0,
+  "contrast_linear": [
+    0.6,
+    0.15
+  ],
+  "pitch_mm": 0.1615,
+  "square_side_mm": 95.931,
+  "scale_bar_mm": 50.0,
+  "scale_bar_px": 310,
+  "min_distance_mm": 1122.8489116517285
+}
