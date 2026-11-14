@@ -1,14 +1,14 @@
 # Full capture set (described in the README, not committed)
-  captures/
-  *.dng
-  *.DNG
-  *.jpg
-  *.JPG
+captures/
+*.dng
+*.DNG
+*.jpg
+*.JPG
 
-  # Local environment and caches
-  .venv/
-  __pycache__/
-  .pytest_cache/
+# Local environment and caches
+.venv/
+__pycache__/
+.pytest_cache/
 
-  # Trained checkpoints (the exported ONNX model is committed when it is ready)
-  models/*.pt
+# Trained checkpoints (the exported ONNX model is committed when it is ready)
+models/*.pt
