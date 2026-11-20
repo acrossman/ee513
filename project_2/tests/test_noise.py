@@ -28,3 +28,13 @@ def test_noise_model_recovers_read_and_shot_terms():
 def test_psnr_of_known_error():
     ref = np.zeros((10, 10))
     assert np.isclose(psnr(ref + 0.1, ref), 20.0)
+
+
+def test_normalize_per_channel_uses_each_black_level():
+    from isp.rawio import SATURATION, normalize_per_channel
+    mosaic = np.zeros((4, 4))
+    black = [60.0, 62.0, 63.0, 66.0]
+    mosaic[0::2, 0::2], mosaic[0::2, 1::2], mosaic[1::2, 0::2], mosaic[1::2, 1::2] = black
+    assert np.allclose(normalize_per_channel(mosaic, black), 0)
+    mosaic[:] = SATURATION
+    assert np.allclose(normalize_per_channel(mosaic, black), 1)

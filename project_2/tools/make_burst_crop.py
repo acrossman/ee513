@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from isp.rawio import load_mosaic
 
 N_FRAMES = 16
-ROW, COL, SIZE = 1480, 2300, 512
+ROW, COL, SIZE = 712, 2312, 512
 
 folder = sys.argv[1]
 out = sys.argv[2]

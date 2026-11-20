@@ -19,3 +19,10 @@ def normalize(mosaic):
 
 def green_sites(img):
     return img[0::2, 1::2]
+
+
+def normalize_per_channel(mosaic, black):
+    out = mosaic.astype(np.float32)
+    for (row, col), b in zip([(0, 0), (0, 1), (1, 0), (1, 1)], black):
+        out[row::2, col::2] = (out[row::2, col::2] - b) / (SATURATION - b)
+    return out
